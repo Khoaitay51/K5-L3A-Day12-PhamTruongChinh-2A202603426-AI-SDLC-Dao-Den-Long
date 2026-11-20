@@ -62,6 +62,6 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(filePath).pipe(res);
 });
 
-server.listen(port, '127.0.0.1', () => {
-  process.stdout.write(`Đảo Đèn Lồng đang chạy tại http://127.0.0.1:${port}\n`);
+server.listen(port, '0.0.0.0', () => {
+  process.stdout.write(`Đảo Đèn Lồng đang chạy tại http://localhost:${port}\n`);
 });

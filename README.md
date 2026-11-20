@@ -16,7 +16,7 @@ npm run build
 npm run start
 ```
 
-Sau đó mở trình duyệt tại `http://127.0.0.1:4173`.
+Sau đó mở trình duyệt tại `http://localhost:4173`.
 
 ---
 
