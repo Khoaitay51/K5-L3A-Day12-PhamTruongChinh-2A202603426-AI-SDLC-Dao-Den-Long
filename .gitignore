@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+*.log
+tmp/
+out.json
+bench.json
+soak.json
+*.jsonl
+!tests/fixtures/*.jsonl
