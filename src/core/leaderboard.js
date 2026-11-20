@@ -1,13 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+export { validatePlayerName } from './validate.js';
 
 export const DEFAULT_LEADERBOARD_PATH = path.resolve(process.cwd(), 'data/leaderboard.json');
-
-export function validatePlayerName(name) {
-  if (typeof name !== 'string') return false;
-  const trimmed = name.trim();
-  return trimmed.length >= 3 && trimmed.length <= 12;
-}
 
 export function sortLeaderboard(entries) {
   return [...entries]

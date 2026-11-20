@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 function parseArgs(argv) {
   const args = { seed: 42, duration: 30, out: 'bench.json' };
@@ -19,7 +19,10 @@ function findChrome() {
     'google-chrome',
     'chromium',
     'chromium-browser',
+    'microsoft-edge',
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
+    '/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   ];
   for (const bin of candidates) {
     const res = spawnSync('which', [bin], { encoding: 'utf8' });
@@ -38,10 +41,7 @@ if (!fs.existsSync(distDir)) {
 
 const chromeBin = findChrome();
 if (!chromeBin) {
-  process.stderr.write(
-    'No Chrome/Chromium binary found for WebGL 1280x720 benchmark. ' +
-    'Install Google Chrome / Chromium or Playwright on the benchmark machine.\n'
-  );
+  process.stderr.write('No Chrome/Chromium/Edge binary found for WebGL 1280x720 benchmark.\n');
   process.exit(1);
 }
 
@@ -52,19 +52,32 @@ const mimeTypes = {
   '.json': 'application/json; charset=utf-8',
 };
 
-let server;
-let benchPayload = null;
+let child = null;
+let done = false;
 
-server = http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   const urlPath = (req.url || '/').split('?')[0];
   if (urlPath === '/api/bench-done' && req.method === 'POST') {
     let body = '';
     req.on('data', (c) => { body += c; });
     req.on('end', () => {
-      benchPayload = JSON.parse(body);
       res.writeHead(200);
       res.end('ok');
-      server.close();
+      if (done) return;
+      done = true;
+      const benchPayload = JSON.parse(body);
+      const output = {
+        contract_version: '1.3',
+        ...benchPayload,
+        peak_mem_mb: null,
+        vsync_off: true,
+        renderer: 'Three.js WebGLRenderer (r170)',
+        os: `${os.platform()} ${os.release()}`,
+      };
+      fs.mkdirSync(path.dirname(path.resolve(args.out)), { recursive: true });
+      fs.writeFileSync(args.out, JSON.stringify(output, null, 2) + '\n', 'utf8');
+      if (child) child.kill();
+      server.close(() => process.exit(0));
     });
     return;
   }
@@ -79,35 +92,31 @@ server = http.createServer((req, res) => {
   fs.createReadStream(filePath).pipe(res);
 });
 
-server.listen(0, '127.0.0.1', () => {
+server.listen(0, '0.0.0.0', () => {
   const { port } = server.address();
-  const url = `http://127.0.0.1:${port}/?bench=1&seed=${args.seed}&duration=${args.duration}`;
-  const res = spawnSync(
+  const url = `http://localhost:${port}/?bench=1&seed=${args.seed}&duration=${args.duration}`;
+  child = spawn(
     chromeBin,
     [
       '--headless=new',
       '--window-size=1280,720',
       '--disable-gpu-vsync',
-      '--use-gl=angle',
       '--enable-webgl',
+      '--enable-unsafe-swiftshader',
+      '--inprivate',
+      '--no-first-run',
+      '--no-default-browser-check',
       '--no-sandbox',
       url,
     ],
-    { timeout: (args.duration + 25) * 1000 }
+    { stdio: 'ignore' }
   );
-  if (!benchPayload) {
-    process.stderr.write(`Benchmark did not complete (chrome exit=${res.status})\n`);
-    process.exit(1);
-  }
-  const output = {
-    contract_version: '1.3',
-    ...benchPayload,
-    peak_mem_mb: null,
-    vsync_off: true,
-    renderer: 'Three.js WebGLRenderer (r170)',
-    os: `${os.platform()} ${os.release()}`,
-  };
-  fs.mkdirSync(path.dirname(path.resolve(args.out)), { recursive: true });
-  fs.writeFileSync(args.out, JSON.stringify(output, null, 2) + '\n', 'utf8');
-  process.exit(0);
+
+  setTimeout(() => {
+    if (!done) {
+      if (child) child.kill();
+      process.stderr.write('Benchmark timed out waiting for /api/bench-done\n');
+      process.exit(1);
+    }
+  }, (args.duration + 25) * 1000);
 });

@@ -5,6 +5,5 @@ dist/
 *.log
 tmp/
 out.json
-bench.json
 *.jsonl
 !tests/fixtures/*.jsonl

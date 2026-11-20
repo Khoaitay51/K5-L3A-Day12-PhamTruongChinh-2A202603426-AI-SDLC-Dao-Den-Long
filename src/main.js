@@ -2,7 +2,7 @@ import { GameSimulation } from './core/sim.js';
 import { DT, TUNING } from './core/config.js';
 import { MAPS } from './core/maps.js';
 import { createRng } from './core/rng.js';
-import { validatePlayerName } from './core/leaderboard.js';
+import { validatePlayerName } from './core/validate.js';
 import { GameView } from './render/GameView.js';
 import { AudioManager } from './render/AudioManager.js';
 
@@ -56,7 +56,8 @@ function runBenchmarkMode(seed, durationS) {
   let lastFrame = performance.now();
   const dts = [];
 
-  function benchFrame(now) {
+  function benchFrame() {
+    const now = performance.now();
     if (firstFrameAt === null) {
       firstFrameAt = now;
       benchStart = now;
@@ -98,7 +99,7 @@ function runBenchmarkMode(seed, durationS) {
         p1_low_fps: Math.round(p1LowFps * 10) / 10,
         frame_ms_p95: Math.round(p95 * 10) / 10,
         frames: n,
-        load_ms: Math.round(firstFrameAt - procStart),
+        load_ms: Math.max(1, Math.round(firstFrameAt)),
       };
       fetch('/api/bench-done', {
         method: 'POST',
