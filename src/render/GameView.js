@@ -182,7 +182,7 @@ export class GameView {
     };
   }
 
-  sync(sim, camYawDeg, timeS) {
+  sync(sim, camYawDeg, timeS, cameraOverride = null) {
     if (this.currentNightBuilt !== sim.night) {
       this._buildMap(sim.night, sim.map);
     }
@@ -311,13 +311,18 @@ export class GameView {
       this.pulseRing.material.opacity = 0;
     }
 
-    const yawRad = (camYawDeg * Math.PI) / 180;
-    this.camera.position.set(
-      sim.player.pos[0] - Math.sin(yawRad) * 9.5,
-      sim.player.pos[1] + 5.0,
-      sim.player.pos[2] - Math.cos(yawRad) * 9.5
-    );
-    this.camera.lookAt(sim.player.pos[0], sim.player.pos[1] + 1.2, sim.player.pos[2]);
+    if (cameraOverride) {
+      this.camera.position.set(cameraOverride.pos[0], cameraOverride.pos[1], cameraOverride.pos[2]);
+      this.camera.lookAt(cameraOverride.lookAt[0], cameraOverride.lookAt[1], cameraOverride.lookAt[2]);
+    } else {
+      const yawRad = (camYawDeg * Math.PI) / 180;
+      this.camera.position.set(
+        sim.player.pos[0] - Math.sin(yawRad) * 9.5,
+        sim.player.pos[1] + 5.0,
+        sim.player.pos[2] - Math.cos(yawRad) * 9.5
+      );
+      this.camera.lookAt(sim.player.pos[0], sim.player.pos[1] + 1.2, sim.player.pos[2]);
+    }
 
     this.renderer.render(this.scene, this.camera);
   }

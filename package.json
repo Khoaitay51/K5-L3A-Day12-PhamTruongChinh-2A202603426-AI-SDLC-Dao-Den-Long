@@ -1,15 +1,17 @@
 {
   "name": "dao-den-long",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Đảo Đèn Lồng — 3D Game (Three.js + Headless Simulation)",
   "scripts": {
     "build": "vite build",
     "dev": "vite --port 4173",
-    "start": "vite preview --host 127.0.0.1 --port 4173",
+    "start": "node src/cli/run.js",
     "test": "node --test tests/*.test.js",
-    "headless": "node src/cli/headless.js"
+    "headless": "node src/cli/headless.js",
+    "soak": "node --expose-gc --jitless src/cli/soak.js",
+    "bench": "node src/cli/bench.js"
   },
   "dependencies": {
     "three": "^0.170.0"
