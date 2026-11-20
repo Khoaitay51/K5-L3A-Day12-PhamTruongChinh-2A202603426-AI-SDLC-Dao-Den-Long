@@ -1,10 +1,11 @@
-/**
- * Lightweight procedural WebAudio sound effects (no external audio assets needed).
- */
 export class AudioManager {
   constructor() {
     this.ctx = null;
     this.volume = 0.5;
+  }
+
+  setVolume(v) {
+    this.volume = Math.max(0, Math.min(1, v));
   }
 
   _ensure() {
@@ -44,6 +45,15 @@ export class AudioManager {
         break;
       case 'pulse':
         this.playTone(440, 0.22, 'sine', 0.35);
+        break;
+      case 'dash':
+        this.playTone(580, 0.08, 'triangle', 0.18);
+        break;
+      case 'charm_picked':
+        this.playTone(784, 0.2, 'triangle', 0.3);
+        break;
+      case 'shade_spawned':
+        this.playTone(110, 0.28, 'sine', 0.18);
         break;
       case 'player_hit':
         this.playTone(150, 0.25, 'sawtooth', 0.25);

@@ -54,7 +54,9 @@ function parseArgs(argv) {
     }
   }
   if (!Number.isInteger(args.seed)) fail('Invalid --seed', 1);
-  if (!Number.isInteger(args.night) || args.night !== 1) fail('Invalid --night (Phase 1 supports 1)', 1);
+  if (!Number.isInteger(args.night) || args.night < 1 || args.night > 3) {
+    fail('Invalid --night (expected 1, 2, or 3)', 1);
+  }
   if (!Number.isInteger(args.ticks) || args.ticks < 0) fail('Invalid or missing --ticks', 1);
   if (!args.out) fail('Missing --out', 1);
   if (!Number.isInteger(args.snapshotEvery) || args.snapshotEvery <= 0) {
@@ -109,7 +111,7 @@ lines.push(JSON.stringify(sim.getSnapshot()));
 
 let frameIdx = 0;
 for (let k = 0; k < args.ticks; k++) {
-  if (sim.state !== 'playing') break;
+  if (sim.state === 'won' || sim.state === 'lost') break;
   let frameInput = {};
   if (frameIdx < frames.length && frames[frameIdx].tick === k) {
     frameInput = frames[frameIdx];
@@ -119,7 +121,7 @@ for (let k = 0; k < args.ticks; k++) {
   for (const ev of events) {
     lines.push(JSON.stringify(ev));
   }
-  if (sim.tick % args.snapshotEvery === 0 || sim.state !== 'playing') {
+  if (sim.tick % args.snapshotEvery === 0 || sim.state === 'won' || sim.state === 'lost') {
     lines.push(JSON.stringify(sim.getSnapshot()));
   }
 }

@@ -6,13 +6,13 @@ export class GameView {
     this.container = container;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#0E1430');
-    this.scene.fog = new THREE.FogExp2('#1B2350', 0.015);
+    this.scene.fog = new THREE.FogExp2('#1B2350', 0.012);
 
     this.camera = new THREE.PerspectiveCamera(
       60,
       container.clientWidth / Math.max(1, container.clientHeight),
       0.1,
-      250
+      300
     );
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -20,27 +20,25 @@ export class GameView {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     container.appendChild(this.renderer.domElement);
 
-    this.ambient = new THREE.AmbientLight('#FFE9B0', 0.25);
+    this.ambient = new THREE.AmbientLight('#FFE9B0', 0.2);
     this.scene.add(this.ambient);
 
     this.hemi = new THREE.HemisphereLight('#8FA3B8', '#0E1430', 0.35);
     this.scene.add(this.hemi);
 
-    // Island ground & sea of clouds
-    const islandGeo = new THREE.CylinderGeometry(TUNING.islandRadius, TUNING.islandRadius + 2, 2, 48);
-    const islandMat = new THREE.MeshStandardMaterial({ color: '#2F5D50', roughness: 0.9 });
-    const island = new THREE.Mesh(islandGeo, islandMat);
-    island.position.y = -1;
-    this.scene.add(island);
-
-    const seaGeo = new THREE.PlaneGeometry(300, 300);
-    const seaMat = new THREE.MeshBasicMaterial({ color: '#12384A' });
-    const sea = new THREE.Mesh(seaGeo, seaMat);
+    const sea = new THREE.Mesh(
+      new THREE.PlaneGeometry(400, 400),
+      new THREE.MeshBasicMaterial({ color: '#12384A' })
+    );
     sea.rotation.x = -Math.PI / 2;
     sea.position.y = -10.5;
     this.scene.add(sea);
 
-    // Player Mây (with nón lá + hanging mini lantern)
+    this.mapGroup = new THREE.Group();
+    this.scene.add(this.mapGroup);
+    this.currentNightBuilt = null;
+
+    // Player Mây
     this.playerGroup = new THREE.Group();
     const body = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.32, 0.7, 6, 12),
@@ -48,6 +46,14 @@ export class GameView {
     );
     body.position.y = 0.7;
     this.playerGroup.add(body);
+
+    const scarf = new THREE.Mesh(
+      new THREE.TorusGeometry(0.28, 0.07, 6, 12),
+      new THREE.MeshStandardMaterial({ color: '#C8102E' })
+    );
+    scarf.rotation.x = Math.PI / 2;
+    scarf.position.y = 1.08;
+    this.playerGroup.add(scarf);
 
     const hat = new THREE.Mesh(
       new THREE.ConeGeometry(0.55, 0.35, 16),
@@ -68,54 +74,124 @@ export class GameView {
     this.playerGroup.add(this.playerLight);
     this.scene.add(this.playerGroup);
 
-    // Pulse visual ring
     this.pulseRing = new THREE.Mesh(
       new THREE.RingGeometry(0.4, TUNING.pulseRadius, 32),
       new THREE.MeshBasicMaterial({ color: '#FFE58A', side: THREE.DoubleSide, transparent: true, opacity: 0 })
     );
     this.pulseRing.rotation.x = -Math.PI / 2;
-    this.pulseRing.position.y = 0.2;
     this.scene.add(this.pulseRing);
     this.pulseEffectTimer = 0;
 
     this.lanternMeshes = new Map();
     this.moteMeshes = new Map();
     this.shadeMeshes = new Map();
+    this.drifterMeshes = new Map();
+    this.charmMeshes = new Map();
 
-    // Decorative ambient spirit fireflies (purely visual, does not affect headless)
-    this.ambientSpirits = [];
-    const spiritGeo = new THREE.SphereGeometry(0.08, 6, 6);
-    const spiritMat = new THREE.MeshBasicMaterial({ color: '#FFE58A', transparent: true, opacity: 0.55 });
-    for (let i = 0; i < 18; i++) {
-      const m = new THREE.Mesh(spiritGeo, spiritMat);
-      const a = (i / 18) * Math.PI * 2;
-      const r = 10 + (i % 5) * 6;
-      m.position.set(Math.cos(a) * r, 2.2 + (i % 3) * 0.7, Math.sin(a) * r);
-      this.scene.add(m);
-      this.ambientSpirits.push({ mesh: m, baseAngle: a, radius: r, phase: i });
-    }
-
-    this._onResize = () => {
+    window.addEventListener('resize', () => {
       this.camera.aspect = container.clientWidth / Math.max(1, container.clientHeight);
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(container.clientWidth, container.clientHeight);
-    };
-    window.addEventListener('resize', this._onResize);
+    });
+  }
+
+  _clearMap() {
+    while (this.mapGroup.children.length > 0) {
+      this.mapGroup.remove(this.mapGroup.children[0]);
+    }
+    for (const entry of this.lanternMeshes.values()) this.scene.remove(entry.group);
+    this.lanternMeshes.clear();
+    for (const m of this.moteMeshes.values()) this.scene.remove(m);
+    this.moteMeshes.clear();
+    for (const s of this.shadeMeshes.values()) this.scene.remove(s);
+    this.shadeMeshes.clear();
+    for (const d of this.drifterMeshes.values()) this.scene.remove(d);
+    this.drifterMeshes.clear();
+    for (const c of this.charmMeshes.values()) this.scene.remove(c);
+    this.charmMeshes.clear();
+  }
+
+  _buildMap(night, map) {
+    this._clearMap();
+    this.currentNightBuilt = night;
+    const grassMat = new THREE.MeshStandardMaterial({ color: '#2F5D50', roughness: 0.9 });
+    const woodMat = new THREE.MeshStandardMaterial({ color: '#6B4A2F', roughness: 0.85 });
+    const sandMat = new THREE.MeshStandardMaterial({ color: '#C9B48A', roughness: 0.9 });
+
+    if (night === 1) {
+      const island = new THREE.Mesh(new THREE.CylinderGeometry(40, 42, 2, 48), grassMat);
+      island.position.y = -1;
+      this.mapGroup.add(island);
+    } else if (night === 2) {
+      const islA = new THREE.Mesh(new THREE.CylinderGeometry(28, 30, 2, 40), grassMat);
+      islA.position.set(0, -1, 0);
+      this.mapGroup.add(islA);
+
+      const islB = new THREE.Mesh(new THREE.CylinderGeometry(28, 30, 2, 40), grassMat);
+      islB.position.set(70, -1, 0);
+      this.mapGroup.add(islB);
+
+      const bridge = new THREE.Mesh(new THREE.BoxGeometry(18, 0.4, 4), woodMat);
+      bridge.position.set(35, -0.2, 0);
+      this.mapGroup.add(bridge);
+    } else if (night === 3) {
+      const tier0 = new THREE.Mesh(new THREE.CylinderGeometry(45, 47, 2, 48), grassMat);
+      tier0.position.y = -1;
+      this.mapGroup.add(tier0);
+
+      const tier1Shape = new THREE.Shape();
+      tier1Shape.absarc(0, 0, 24, 0, Math.PI, false);
+      tier1Shape.absarc(0, 0, 12, Math.PI, 0, true);
+      const tier1Geo = new THREE.ExtrudeGeometry(tier1Shape, { depth: 3, bevelEnabled: false });
+      tier1Geo.rotateX(Math.PI / 2);
+      const tier1 = new THREE.Mesh(tier1Geo, sandMat);
+      tier1.position.y = 3;
+      this.mapGroup.add(tier1);
+
+      const tier2 = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 6, 32), grassMat);
+      tier2.position.y = 3;
+      this.mapGroup.add(tier2);
+
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 8, 16), woodMat);
+      tower.position.set(0, 10, 0);
+      this.mapGroup.add(tower);
+    }
+
+    for (const pad of map.jumpPads) {
+      const m = new THREE.Mesh(
+        new THREE.CylinderGeometry(pad.radius, pad.radius, 0.25, 16),
+        new THREE.MeshBasicMaterial({ color: '#F2C14E' })
+      );
+      m.position.set(pad.pos[0], pad.pos[1] + 0.12, pad.pos[2]);
+      this.mapGroup.add(m);
+    }
   }
 
   triggerPulseVisual() {
     this.pulseEffectTimer = 0.35;
   }
 
+  projectToScreen(worldPos) {
+    const v = new THREE.Vector3(worldPos[0], worldPos[1] + 2.5, worldPos[2]);
+    v.project(this.camera);
+    return {
+      x: (v.x * 0.5 + 0.5) * this.container.clientWidth,
+      y: (-v.y * 0.5 + 0.5) * this.container.clientHeight,
+      inFront: v.z < 1,
+    };
+  }
+
   sync(sim, camYawDeg, timeS) {
+    if (this.currentNightBuilt !== sim.night) {
+      this._buildMap(sim.night, sim.map);
+    }
+
     this.playerGroup.position.set(sim.player.pos[0], sim.player.pos[1], sim.player.pos[2]);
     this.playerGroup.rotation.y = sim.player.yawRad;
 
     const litCount = sim.lanterns.filter((l) => l.lit).length;
-    const progress = litCount / Math.max(1, sim.lanterns.length);
-    this.ambient.intensity = 0.15 + 0.55 * progress;
+    this.ambient.intensity = 0.15 + 0.55 * (litCount / Math.max(1, sim.lanterns.length));
 
-    // Lanterns
     for (const l of sim.lanterns) {
       let entry = this.lanternMeshes.get(l.id);
       if (!entry) {
@@ -152,50 +228,74 @@ export class GameView {
       }
     }
 
-    // Motes
-    const activeMoteIds = new Set(sim.motes.map((m) => m.id));
-    for (const [id, mesh] of this.moteMeshes) {
-      if (!activeMoteIds.has(id)) {
-        this.scene.remove(mesh);
-        this.moteMeshes.delete(id);
+    const syncPool = (items, map, createFn, updateFn) => {
+      const ids = new Set(items.map((x) => x.id));
+      for (const [id, mesh] of map) {
+        if (!ids.has(id)) {
+          this.scene.remove(mesh);
+          map.delete(id);
+        }
       }
-    }
-    for (const m of sim.motes) {
-      let mesh = this.moteMeshes.get(m.id);
-      if (!mesh) {
-        mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.24, 10, 10),
-          new THREE.MeshBasicMaterial({ color: '#FFF6C2' })
-        );
-        this.scene.add(mesh);
-        this.moteMeshes.set(m.id, mesh);
+      for (const item of items) {
+        let mesh = map.get(item.id);
+        if (!mesh) {
+          mesh = createFn(item);
+          this.scene.add(mesh);
+          map.set(item.id, mesh);
+        }
+        updateFn(mesh, item);
       }
-      mesh.position.set(m.pos[0], m.pos[1] + 0.65 + Math.sin(timeS * 4 + m.pos[0]) * 0.15, m.pos[2]);
-    }
+    };
 
-    // Shades
-    const activeShadeIds = new Set(sim.shades.map((s) => s.id));
-    for (const [id, mesh] of this.shadeMeshes) {
-      if (!activeShadeIds.has(id)) {
-        this.scene.remove(mesh);
-        this.shadeMeshes.delete(id);
-      }
-    }
-    for (const s of sim.shades) {
-      let mesh = this.shadeMeshes.get(s.id);
-      if (!mesh) {
-        mesh = new THREE.Mesh(
+    syncPool(
+      sim.motes,
+      this.moteMeshes,
+      () => new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 10), new THREE.MeshBasicMaterial({ color: '#FFF6C2' })),
+      (mesh, m) => mesh.position.set(m.pos[0], m.pos[1] + 0.65 + Math.sin(timeS * 4 + m.pos[0]) * 0.15, m.pos[2])
+    );
+
+    syncPool(
+      sim.shades,
+      this.shadeMeshes,
+      () =>
+        new THREE.Mesh(
           new THREE.DodecahedronGeometry(0.55, 0),
           new THREE.MeshStandardMaterial({ color: '#120A1A', emissive: '#7A3CFF', emissiveIntensity: 0.7 })
-        );
-        this.scene.add(mesh);
-        this.shadeMeshes.set(s.id, mesh);
+        ),
+      (mesh, s) => {
+        mesh.material.color.set(s.state === 'stunned' ? '#3A3450' : '#120A1A');
+        mesh.position.set(s.pos[0], s.pos[1] + 0.9, s.pos[2]);
       }
-      mesh.material.color.set(s.state === 'stunned' ? '#3A3450' : '#120A1A');
-      mesh.position.set(s.pos[0], s.pos[1] + 0.9, s.pos[2]);
-    }
+    );
 
-    // Pulse ring
+    syncPool(
+      sim.drifters.filter((d) => d.state !== 'removed'),
+      this.drifterMeshes,
+      () =>
+        new THREE.Mesh(
+          new THREE.ConeGeometry(0.35, 1.1, 8),
+          new THREE.MeshStandardMaterial({ color: '#8FA3B8', emissive: '#1B2350' })
+        ),
+      (mesh, d) => {
+        mesh.position.set(d.pos[0], d.pos[1] + 1.1, d.pos[2]);
+        mesh.rotation.y = timeS * 3;
+      }
+    );
+
+    syncPool(
+      sim.charms.filter((c) => c.available),
+      this.charmMeshes,
+      () =>
+        new THREE.Mesh(
+          new THREE.BoxGeometry(0.45, 0.7, 0.1),
+          new THREE.MeshStandardMaterial({ color: '#C8102E', emissive: '#F2C14E', emissiveIntensity: 0.35 })
+        ),
+      (mesh, c) => {
+        mesh.position.set(c.pos[0], c.pos[1] + 0.9 + Math.sin(timeS * 3) * 0.15, c.pos[2]);
+        mesh.rotation.y = timeS * 2;
+      }
+    );
+
     if (this.pulseEffectTimer > 0) {
       this.pulseEffectTimer = Math.max(0, this.pulseEffectTimer - 1 / 60);
       this.pulseRing.position.set(sim.player.pos[0], sim.player.pos[1] + 0.2, sim.player.pos[2]);
@@ -204,22 +304,11 @@ export class GameView {
       this.pulseRing.material.opacity = 0;
     }
 
-    // Ambient decorative spirits
-    for (const sp of this.ambientSpirits) {
-      const a = sp.baseAngle + timeS * 0.12;
-      sp.mesh.position.x = Math.cos(a) * sp.radius;
-      sp.mesh.position.z = Math.sin(a) * sp.radius;
-      sp.mesh.position.y = 2.2 + Math.sin(timeS * 1.5 + sp.phase) * 0.4;
-    }
-
-    // 3rd person camera
     const yawRad = (camYawDeg * Math.PI) / 180;
-    const camDist = 9.5;
-    const camHeight = 5.0;
     this.camera.position.set(
-      sim.player.pos[0] - Math.sin(yawRad) * camDist,
-      sim.player.pos[1] + camHeight,
-      sim.player.pos[2] - Math.cos(yawRad) * camDist
+      sim.player.pos[0] - Math.sin(yawRad) * 9.5,
+      sim.player.pos[1] + 5.0,
+      sim.player.pos[2] - Math.cos(yawRad) * 9.5
     );
     this.camera.lookAt(sim.player.pos[0], sim.player.pos[1] + 1.2, sim.player.pos[2]);
 
