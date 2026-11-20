@@ -9,10 +9,11 @@
 ## Architecture Rules
 - `src/core/` MUST remain pure ESM JavaScript with zero DOM, WebGL, or `three` imports.
 - Fixed timestep: 60 ticks/sec (`DT = 1/60`). All randomness MUST use `src/core/rng.js` (`mulberry32`).
-- Map geometry, ground height, cliffs, ramps, bridge, tower collision, and jump pads live in `src/core/maps.js`.
-- Follow the exact TICKET-02 12-step tick order in `src/core/sim.js`. Shade states must be one of: `spawning`, `wander`, `chase`, `recoil`, `stunned`.
+- Lantern fuel MUST be tracked in integer `1/60` units (`fuel60`, max `6000`) to avoid floating-point drift; round to 1 decimal only on snapshot/event output.
+- Win condition (Contract v1.2+): survive until dawn (`timeLeftTicks === 0`) with `litCount >= ceil(0.6 * totalLanterns)`. Never end early on all-lit.
+- Shade states: `spawning`, `wander`, `chase`, `drain`, `recoil`, `stunned`.
 - Creative additions in `src/render/` MUST NOT alter headless simulation output.
 
 ## Verification Gate
-- Run `npm test` (including Phase 1 regression + Phase 2 headless scenarios) and `npm run build` before committing or tagging.
-- Verify a full 21,600-tick Night 3 headless run finishes well under 30 seconds.
+- Run `npm test` and `npm run build` before committing or tagging.
+- When a Change Request replaces an old rule, update affected tests with explicit reason comments and record an ADR in `docs/adr/`.

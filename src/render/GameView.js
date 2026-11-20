@@ -87,6 +87,7 @@ export class GameView {
     this.shadeMeshes = new Map();
     this.drifterMeshes = new Map();
     this.charmMeshes = new Map();
+    this.colorblind = false;
 
     window.addEventListener('resize', () => {
       this.camera.aspect = container.clientWidth / Math.max(1, container.clientHeight);
@@ -213,15 +214,20 @@ export class GameView {
         group.add(light);
 
         this.scene.add(group);
-        entry = { group, coreMat, light };
+        entry = { group, core, coreMat, light };
         this.lanternMeshes.set(l.id, entry);
       }
       entry.group.position.set(l.pos[0], l.pos[1], l.pos[2]);
       if (l.lit) {
-        entry.coreMat.color.set('#FFE9B0');
-        entry.coreMat.emissive.set('#FFB347');
-        entry.light.intensity = 4.0;
+        const fuel = l.fuel60 / 60;
+        const blinkOn = fuel >= 30 || Math.floor(timeS * 2) % 2 === 0;
+        entry.core.scale.set(1, 1, 1);
+        entry.coreMat.color.set(blinkOn ? '#FFE9B0' : '#5B5F6E');
+        entry.coreMat.emissive.set(blinkOn ? '#FFB347' : '#000000');
+        entry.light.intensity = blinkOn ? 4.0 : 0.6;
       } else {
+        // Non-color distinction: unlit lanterns are 20% deflated
+        entry.core.scale.set(1, 0.8, 1);
         entry.coreMat.color.set('#5B5F6E');
         entry.coreMat.emissive.set('#000000');
         entry.light.intensity = 0;
@@ -264,6 +270,7 @@ export class GameView {
         ),
       (mesh, s) => {
         mesh.material.color.set(s.state === 'stunned' ? '#3A3450' : '#120A1A');
+        mesh.material.emissive.set(this.colorblind ? '#00B3FF' : '#7A3CFF');
         mesh.position.set(s.pos[0], s.pos[1] + 0.9, s.pos[2]);
       }
     );

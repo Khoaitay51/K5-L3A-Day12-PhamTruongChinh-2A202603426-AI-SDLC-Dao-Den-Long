@@ -23,7 +23,9 @@ test('Phase 1: Scenario setup emits no events and does not award points', () => 
   assert.equal(snap.motes_active, 1);
 });
 
-test('Phase 1: Mote pickup, deposit, lantern_lit, and win condition', () => {
+test('Phase 1 (updated for Ticket-03): Mote pickup, deposit, and lantern_lit (no early win)', () => {
+  // Note: Ticket-03 (Phase 3) replaced early all_lit victory with dawn_survived.
+  // This test verifies deposit + lantern_lit while keeping game in playing state until dawn.
   const sim = new GameSimulation({
     seed: 1,
     night: 1,
@@ -45,9 +47,8 @@ test('Phase 1: Mote pickup, deposit, lantern_lit, and win condition', () => {
   });
   const ev = sim.step({ interact: true });
   assert.ok(ev.some((e) => e.name === 'deposit'));
-  assert.ok(ev.some((e) => e.name === 'lantern_lit'));
-  assert.ok(ev.some((e) => e.name === 'game_over' && e.data.result === 'won'));
-  assert.equal(sim.state, 'won');
+  assert.ok(ev.some((e) => e.name === 'lantern_lit' && e.data.relight === false));
+  assert.equal(sim.state, 'playing');
 });
 
 test('Phase 1: Pulse stuns and pushes shades in range', () => {

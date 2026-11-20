@@ -23,8 +23,9 @@ const overlayActions = document.getElementById('overlay-actions');
 const settingsPanel = document.getElementById('settings-panel');
 const optVol = document.getElementById('opt-vol');
 const optSens = document.getElementById('opt-sens');
+const optCb = document.getElementById('opt-cb');
 
-for (let i = 0; i < TUNING.carryCapacity; i++) {
+for (let i = 0; i < TUNING.capacityMax; i++) {
   const slot = document.createElement('div');
   slot.className = 'mote-slot';
   hudMotes.appendChild(slot);
@@ -32,12 +33,15 @@ for (let i = 0; i < TUNING.carryCapacity; i++) {
 
 const savedSettings = JSON.parse(localStorage.getItem('ddl_settings') || '{}');
 let mouseSens = savedSettings.sens ?? 0.25;
+let colorblind = Boolean(savedSettings.cb);
 audio.setVolume(savedSettings.vol ?? 0.5);
+view.colorblind = colorblind;
 optVol.value = String(audio.volume);
 optSens.value = String(mouseSens);
+optCb.checked = colorblind;
 
 function saveSettings() {
-  localStorage.setItem('ddl_settings', JSON.stringify({ vol: audio.volume, sens: mouseSens }));
+  localStorage.setItem('ddl_settings', JSON.stringify({ vol: audio.volume, sens: mouseSens, cb: colorblind }));
 }
 optVol.addEventListener('input', () => {
   audio.setVolume(Number(optVol.value));
@@ -45,6 +49,11 @@ optVol.addEventListener('input', () => {
 });
 optSens.addEventListener('input', () => {
   mouseSens = Number(optSens.value);
+  saveSettings();
+});
+optCb.addEventListener('change', () => {
+  colorblind = optCb.checked;
+  view.colorblind = colorblind;
   saveSettings();
 });
 
@@ -137,15 +146,18 @@ function updateHud() {
   const sec = Math.ceil(sim.timeLeftTicks / 60);
   const mm = String(Math.floor(sec / 60)).padStart(2, '0');
   const ss = String(sec % 60).padStart(2, '0');
-  hudTimer.textContent = `${mm}:${ss}`;
+  hudTimer.textContent = sec <= 30 && colorblind ? `⚠ ${mm}:${ss}` : `${mm}:${ss}`;
   hudTimer.classList.toggle('danger', sec <= 30);
+  hudTimer.classList.toggle('cb', colorblind);
 
+  const cap = sim.getPlayerCapacity();
   const lit = sim.lanterns.filter((l) => l.lit).length;
   hudScore.textContent = `Đèn: ${lit}/${sim.lanterns.length} · Điểm: ${campaignScore + sim.score}`;
-  hudCarriedText.textContent = `Đom đóm: ${sim.player.carried}/${TUNING.carryCapacity}`;
+  hudCarriedText.textContent = `Đom đóm: ${sim.player.carried}/${cap}`;
 
   const slots = hudMotes.children;
   for (let i = 0; i < slots.length; i++) {
+    slots[i].style.display = i < cap ? 'block' : 'none';
     slots[i].classList.toggle('filled', i < sim.player.carried);
   }
 
